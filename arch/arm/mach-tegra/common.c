@@ -36,6 +36,7 @@
 #include <mach/dma.h>
 #include <mach/powergate.h>
 #include <mach/system.h>
+#include <mach/tegra_cpufreq.h>
 
 #include "apbio.h"
 #include "board.h"
@@ -85,6 +86,7 @@ unsigned long tegra_lp0_vec_size;
 bool tegra_lp0_vec_relocate;
 unsigned long tegra_grhost_aperture;
 static   bool is_tegra_debug_uart_hsport;
+static unsigned long board_personality;
 
 static struct board_info tegra_board_info = {
 	.board_id = -1,
@@ -359,6 +361,20 @@ bool is_tegra_debug_uartport_hs(void)
 
 __setup("debug_uartport=", tegra_debug_uartport);
 
+static int __init tegra_board_personality(char *info)
+{
+        char *p = info;
+        board_personality = memparse(p, &p);
+        return 1;
+}
+
+unsigned long get_board_personality(void)
+{
+        return board_personality;
+}
+
+__setup("personality=", tegra_board_personality);
+
 void tegra_get_board_info(struct board_info *bi)
 {
 	memcpy(bi, &tegra_board_info, sizeof(*bi));
@@ -507,3 +523,76 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		tegra_carveout_start,
 		tegra_carveout_start + tegra_carveout_size - 1);
 }
+
+#if defined CONFIG_HAS_EARLYSUSPEND && defined CONFIG_CPU_FREQ
+static char cpufreq_gov_default[32];
+static char *cpufreq_gov_conservative = "conservative";
+static char *cpufreq_sysfs_place_holder="/sys/devices/system/cpu/cpu%i/cpufreq/scaling_governor";
+
+static void cpufreq_set_governor(char *governor)
+{
+	struct file *scaling_gov = NULL;
+	char    buf[128];
+	int i;
+	loff_t offset = 0;
+
+	if (governor == NULL)
+		return;
+
+	for_each_cpu(i, cpu_present_mask) {
+		sprintf(buf, cpufreq_sysfs_place_holder, i);
+		scaling_gov = filp_open(buf, O_RDWR, 0);
+		if (scaling_gov != NULL) {
+			if (scaling_gov->f_op != NULL &&
+				scaling_gov->f_op->write != NULL)
+				scaling_gov->f_op->write(scaling_gov,
+						governor,
+						strlen(governor),
+						&offset);
+			else
+				pr_err("f_op might be null\n");
+
+			filp_close(scaling_gov, NULL);
+		} else {
+			pr_err("%s. Can't open %s\n", __func__, buf);
+		}
+	}
+}
+
+void cpufreq_save_default_governor(void)
+{
+	struct file *scaling_gov = NULL;
+	char    buf[128];
+	loff_t offset = 0;
+
+	buf[127] = 0;
+	sprintf(buf, cpufreq_sysfs_place_holder,0);
+	scaling_gov = filp_open(buf, O_RDONLY, 0);
+	if (scaling_gov != NULL) {
+		if (scaling_gov->f_op != NULL &&
+			scaling_gov->f_op->read != NULL)
+			scaling_gov->f_op->read(scaling_gov,
+					cpufreq_gov_default,
+					127,
+					&offset);
+		else
+			pr_err("f_op might be null\n");
+
+		filp_close(scaling_gov, NULL);
+	} else {
+		pr_err("%s. Can't open %s\n", __func__, buf);
+	}
+}
+
+void cpufreq_restore_default_governor(void)
+{
+	cpufreq_set_governor(cpufreq_gov_default);
+}
+
+void cpufreq_set_conservative_governor(void)
+{
+	cpufreq_set_governor(cpufreq_gov_conservative);
+}
+#endif
+
+

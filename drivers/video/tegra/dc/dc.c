@@ -1942,6 +1942,8 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 		/* HSD: TP8 + TP10 = 210 ms~ */
 		msleep(210);
 
+                int i;
+
 		disable_irq(dc->irq);
 
 		if (dc->out_ops && dc->out_ops->disable)
@@ -1959,6 +1961,12 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 		clk_disable(dc->clk);
 		tegra_dvfs_set_rate(dc->clk, 0);
 
+                for (i = 0; i < dc->n_windows; i++) {
+		        struct tegra_dc_win *w = &dc->windows[i];
+
+		        /* disable windows */
+		        w->flags &= ~TEGRA_WIN_FLAG_ENABLED;
+	        }
 		/* flush any pending syncpt waits */
 		while (dc->syncpt_min < dc->syncpt_max) {
 			dc->syncpt_min++;
@@ -1972,10 +1980,9 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 		}
 
 	} else {
-		disable_irq(dc->irq);
+                int i;
 
-		if (dc->overlay)
-			tegra_overlay_disable(dc->overlay);
+		disable_irq(dc->irq);
 
 		if (dc->out_ops && dc->out_ops->disable)
 			dc->out_ops->disable(dc);
@@ -1987,6 +1994,12 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 		if (dc->out && dc->out->disable)
 			dc->out->disable();
 
+                for (i = 0; i < dc->n_windows; i++) {
+                        struct tegra_dc_win *w = &dc->windows[i];
+
+                        /* disable windows */
+                        w->flags &= ~TEGRA_WIN_FLAG_ENABLED;
+                }
 		/* flush any pending syncpt waits */
 		while (dc->syncpt_min < dc->syncpt_max) {
 			dc->syncpt_min++;

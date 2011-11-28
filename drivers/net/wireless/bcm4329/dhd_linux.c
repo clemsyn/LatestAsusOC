@@ -323,8 +323,8 @@ typedef struct dhd_info {
 /* Definitions to provide path to the firmware and nvram
  * example nvram_path[MOD_PARAM_PATHLEN]="/projects/wlan/nvram.txt"
  */
-char firmware_path[MOD_PARAM_PATHLEN];
-char nvram_path[MOD_PARAM_PATHLEN];
+char firmware_path[MOD_PARAM_PATHLEN]={"/system/lib/hw/wlan/fw_bcm4329.bin"};
+char nvram_path[MOD_PARAM_PATHLEN]={"/system/lib/hw/wlan/nvram.txt"};
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 struct semaphore dhd_registration_sem;
